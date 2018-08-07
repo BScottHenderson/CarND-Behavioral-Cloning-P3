@@ -1,0 +1,15 @@
+# ignore Python cache
+__pycache__
+
+# no need to store data files in git
+data
+
+# no need to store the simulator in git
+windows_sim
+
+# ignore any saved images or videos from model output
+run1
+run1.*
+
+# no need to store the saved model in git
+model.h5
