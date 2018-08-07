@@ -219,7 +219,7 @@ def main(name):
                                validation_split=VALIDATION_SPLIT, shuffle=True,
                                epochs=EPOCHS)
 
-#    model.save('model.h5')
+    model.save('model.h5')
 
     # Plot the training and validation loss for each epoch
     plt.plot(history_object.history['loss'])
