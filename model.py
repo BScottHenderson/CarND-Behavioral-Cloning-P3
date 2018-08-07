@@ -61,6 +61,20 @@ def LeNet(model):
     return model
 
 
+def NVIDIA(model):
+    model.add(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Convolution2D(36, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Convolution2D(48, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Convolution2D(64, (3, 3), activation='relu'))
+    model.add(Convolution2D(64, (3, 3), activation='relu'))
+    model.add(Flatten())
+    model.add(Dense(100))
+    model.add(Dense(50))
+    model.add(Dense(10))
+    model.add(Dense(1))
+    return model
+
+
 #
 # Main
 #
@@ -99,7 +113,8 @@ def main(name):
     model.add(Lambda(lambda x: (x / 255.0) - 0.5, input_shape=image_shape))
 
     # LeNet
-    model = LeNet(model)
+#    model = LeNet(model)
+    model = NVIDIA(model)
 
     # Use 'mse' (mean squared error) rather than 'cross_entropy' because this is
     # a regression network rather than a classification network.
