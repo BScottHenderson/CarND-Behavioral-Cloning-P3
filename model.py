@@ -34,8 +34,10 @@ IMAGE_WIDTH    = 320
 IMAGE_CHANNELS = 3
 
 # Training parameters
-VALIDATION_SPLIT = 0.2
-EPOCHS           = 5
+DROPOUT           = 0.5
+L2_REGULARIZATION = 0.1
+VALIDATION_SPLIT  = 0.2
+EPOCHS            = 5
 
 
 #
@@ -72,6 +74,25 @@ def NVIDIA(model):
     model.add(Dense(50))
     model.add(Dense(10))
     model.add(Dense(1))
+    return model
+
+
+def NVIDIA2(model):
+    model.add(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Dropout(DROPOUT))
+    model.add(Convolution2D(36, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Dropout(DROPOUT))
+    model.add(Convolution2D(48, (5, 5), strides=(2, 2), activation='relu'))
+    model.add(Dropout(DROPOUT))
+    model.add(Convolution2D(64, (3, 3), activation='relu'))
+    model.add(Dropout(DROPOUT))
+    model.add(Convolution2D(64, (3, 3), activation='relu'))
+    model.add(Dropout(DROPOUT))
+    model.add(Flatten())
+    model.add(Dense(100, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
+    model.add(Dense(50, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
+    model.add(Dense(10, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
+    model.add(Dense(1, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
     return model
 
 
