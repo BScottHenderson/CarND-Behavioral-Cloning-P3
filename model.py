@@ -33,6 +33,10 @@ IMAGE_HEIGHT   = 160
 IMAGE_WIDTH    = 320
 IMAGE_CHANNELS = 3
 
+# Could use trigonometry to find exact adjustment factor if we had enough
+# data regarding the relative position and angle of the three cameras.
+STEERING_CORRECTION = 0.2
+
 # Training parameters
 DROPOUT           = 0.5
 L2_REGULARIZATION = 0.1
@@ -118,9 +122,13 @@ def main(name):
     next(iterlines)  # skip the first line
     for line in iterlines:
         images.append(read_image(line[0]))  # center image
+        images.append(read_image(line[1]))  # left image
+        images.append(read_image(line[2]))  # right image
 
         steering = float(line[3])
         measurements.append(steering)  # center image
+        measurements.append(steering + STEERING_CORRECTION)  # left image
+        measurements.append(steering - STEERING_CORRECTION)  # right image
 
     print('Train the model ...')
     X_train = np.array(images)
