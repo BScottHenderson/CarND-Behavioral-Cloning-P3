@@ -16,11 +16,24 @@ from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
 
+
+# Input image shape:
+IMAGE_HEIGHT   = 160
+IMAGE_WIDTH    = 320
+IMAGE_CHANNELS = 3
+
+# Cropping
+CROP_TOP    = 70
+CROP_BOTTOM = 25
+
+# Low pass filter for steering angle adjustment
+STEERING_SMOOTH = 0.1
+
+
 sio = socketio.Server()
 app = Flask(__name__)
 model = None
 prev_image_array = None
-
 
 class SimplePIController:
     def __init__(self, Kp, Ki):
@@ -47,7 +60,6 @@ controller = SimplePIController(0.1, 0.002)
 set_speed = 9
 controller.set_desired(set_speed)
 
-
 @sio.on('telemetry')
 def telemetry(sid, data):
     if data:
@@ -61,11 +73,21 @@ def telemetry(sid, data):
         imgString = data["image"]
         image = Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
-        steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
+#        predicted_steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
+        # Crop the input image since this is done in the model.
+        predicted_steering_angle = float(model.predict(image_array[None, CROP_TOP:IMAGE_HEIGHT - CROP_BOTTOM, :, :], batch_size=1))
+
+#        # Low pass filter to smooth out steering changes.
+#        steering_angle = float(steering_angle)
+#        if steering_angle != 0.:
+#            steering_angle = (predicted_steering_angle * STEERING_SMOOTH) + (steering_angle * (1. - STEERING_SMOOTH))
+#        else:
+#            steering_angle = predicted_steering_angle
+        steering_angle = predicted_steering_angle
 
         throttle = controller.update(float(speed))
 
-        print(steering_angle, throttle)
+        print('steering:{:+9.5f}, throttle:{:+9.5f}'.format(steering_angle, throttle))
         send_control(steering_angle, throttle)
 
         # save frame
@@ -108,6 +130,13 @@ if __name__ == '__main__':
         default='',
         help='Path to image folder. This is where the images from the run will be saved.'
     )
+    parser.add_argument(
+        '--speed',
+        type=int,
+        nargs='?',
+        default=0,
+        help='Set the driving speed.'
+    )
     args = parser.parse_args()
 
     # check that model Keras version is same as local Keras version
@@ -131,6 +160,10 @@ if __name__ == '__main__':
         print("RECORDING THIS RUN ...")
     else:
         print("NOT RECORDING THIS RUN ...")
+
+    # Adjust the speed.
+    if args.speed > 0:
+        controller.set_desired(args.speed)
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)
