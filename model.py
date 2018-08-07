@@ -154,9 +154,21 @@ def main(name):
         measurements.append(steering + STEERING_CORRECTION)  # left image
         measurements.append(steering - STEERING_CORRECTION)  # right image
 
+    print('Add augmented images ...')
+    augmented_images, augmented_measurements = [], []
+    for image, measurement in zip(images, measurements):
+        augmented_images.append(image)
+        augmented_measurements.append(measurement)
+        # Mitigate the tendency of the model to turn left - since the
+        # training track is basically an oval - by flipping the image
+        # horizontally and changing the sign for the steering angle
+        # measurement.
+        augmented_images.append(cv2.flip(image, 1))  # flip around the y axis
+        augmented_measurements.append(-measurement)
+
     print('Train the model ...')
-    X_train = np.array(images)
-    y_train = np.array(measurements)
+    X_train = np.array(augmented_images)
+    y_train = np.array(augmented_measurements)
 
 #    image_shape = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
     cropped_image_shape = (CROPPED_IMAGE_HEIGHT, CROPPED_IMAGE_WIDTH, IMAGE_CHANNELS)
@@ -173,12 +185,26 @@ def main(name):
 
     # Use 'mse' (mean squared error) rather than 'cross_entropy' because this is
     # a regression network rather than a classification network.
+    # Use 'mae' (mean absolute error) rather than 'mse' to reduce the penalty
+    # for wrong answers and make the model "take risks" so it will learn better.
     model.compile(loss='mae', optimizer='adam')
-    model.fit(X_train, y_train,
-              validation_split=VALIDATION_SPLIT, shuffle=True,
-              epochs=EPOCHS)
+    history_object = model.fit(X_train, y_train,
+                               validation_split=VALIDATION_SPLIT, shuffle=True,
+                               epochs=EPOCHS)
 
 #    model.save('model.h5')
+
+    # Plot the training and validation loss for each epoch
+    plt.plot(history_object.history['loss'])
+    plt.plot(history_object.history['val_loss'])
+    # plt.title('Model Mean Squared Error Loss')
+    # plt.ylabel('Mean Squared Error Loss')
+    plt.title('Model Mean Absolute Error Loss')
+    plt.ylabel('Mean Absolute Error Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Training Set', 'Validation Set'], loc='upper right')
+    plt.savefig('Loss.png')
+    plt.show()
 
 
 if __name__ == '__main__':
