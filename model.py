@@ -56,6 +56,22 @@ EPOCHS            = 5
 # Local functions
 #
 
+def test_weather_augmentation(image):
+    cv2.imwrite('./images/image.png', image)
+    image_bright = add_brightness(image)
+    cv2.imwrite('./images/image_0_bright.png', image_bright)
+    image_shadow = add_shadow(image)
+    cv2.imwrite('./images/image_1_shadow.png', image_shadow)
+    image_snow = add_snow(image)
+    cv2.imwrite('./images/image_2_snow.png', image_snow)
+    image_rain = add_rain(image)
+    cv2.imwrite('./images/image_3_rain.png', image_rain)
+    image_fog = add_fog(image)
+    cv2.imwrite('./images/image_4_fog.png', image_fog)
+    image_torrential_rain = add_fog(add_rain(image))
+    cv2.imwrite('./images/image_5_torrential_rain.png', image_torrential_rain)
+
+
 def read_image(source_path):
     file_name = source_path.split('/')[-1]
     image_path = './data/IMG/' + file_name
@@ -165,6 +181,17 @@ def main(name):
         # measurement.
         augmented_images.append(cv2.flip(image, 1))  # flip around the y axis
         augmented_measurements.append(-measurement)
+        # Add some weather - help prevent overfitting.
+        augmented_images.append(add_brightness(image))
+        augmented_measurements.append(measurement)
+        augmented_images.append(add_shadow(image))
+        augmented_measurements.append(measurement)
+#        augmented_images.append(add_snow(image))
+#        augmented_measurements.append(measurement)
+#        augmented_images.append(add_rain(image))
+#        augmented_measurements.append(measurement)
+#        augmented_images.append(add_fog(image))
+#        augmented_measurements.append(measurement)
 
     print('Train the model ...')
     X_train = np.array(augmented_images)
