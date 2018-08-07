@@ -10,6 +10,3 @@ windows_sim
 # ignore any saved images or videos from model output
 run1
 run1.*
-
-# no need to store the saved model in git
-model.h5
