@@ -10,3 +10,6 @@ windows_sim
 # ignore any saved images or videos from model output
 run1
 run1.*
+
+# ignore Udacity Reviews files
+Udacity Reviews
