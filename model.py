@@ -144,7 +144,7 @@ def NVIDIA2(model):
 # Main
 #
 
-def main(name):
+def main(name=None):
 
     print('Name: {}'.format(name))
 
