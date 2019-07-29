@@ -155,7 +155,14 @@ def main(name=None):
         for line in reader:
             lines.append(line)
 
-    print('Load image files ...')
+    # # Write test augmentation images.
+    # index = np.random.randint(1, len(lines))
+    # center_image_file = lines[index][0]
+    # print('image file: {}'.format(center_image_file))
+    # center_image = read_image(center_image_file)
+    # test_weather_augmentation(center_image)
+
+    print('Load image files (w/crop) ...')
     images = []
     measurements = []
     iterlines = iter(lines)
@@ -186,28 +193,30 @@ def main(name=None):
         augmented_measurements.append(measurement)
         augmented_images.append(add_shadow(image))
         augmented_measurements.append(measurement)
-#        augmented_images.append(add_snow(image))
-#        augmented_measurements.append(measurement)
-#        augmented_images.append(add_rain(image))
-#        augmented_measurements.append(measurement)
-#        augmented_images.append(add_fog(image))
-#        augmented_measurements.append(measurement)
+        # augmented_images.append(add_snow(image))
+        # augmented_measurements.append(measurement)
+        # augmented_images.append(add_rain(image))
+        # augmented_measurements.append(measurement)
+        # augmented_images.append(add_fog(image))
+        # augmented_measurements.append(measurement)
 
     print('Train the model ...')
     X_train = np.array(augmented_images)
     y_train = np.array(augmented_measurements)
 
-#    image_shape = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
+    # image_shape = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
     cropped_image_shape = (CROPPED_IMAGE_HEIGHT, CROPPED_IMAGE_WIDTH, IMAGE_CHANNELS)
 
     model = Sequential()
     # Preprocess incoming data, centered around zero with small standard deviation
     # data preprocessing: normalization and mean centering (shift mean to 0.0)
     model.add(Lambda(lambda x: (x / 255.0) - 0.5, input_shape=cropped_image_shape))
+    # model.add(Lambda(lambda x: (x / 127.5) - 1., input_shape=cropped_image_shape))
 
     # LeNet
-#    model = LeNet(model)
-#    model = NVIDIA(model)
+    # model = LeNet(model)
+    # NVIDIA model
+    # model = NVIDIA(model)
     model = NVIDIA2(model)
 
     # Use 'mse' (mean squared error) rather than 'cross_entropy' because this is
