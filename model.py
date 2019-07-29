@@ -15,11 +15,11 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda  # , Cropping2D
-from keras.layers import Convolution2D, MaxPooling2D
-from keras.layers import Dropout
-from keras import regularizers
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Flatten, Dense, Lambda  # , Cropping2D
+from tensorflow.keras.layers import Convolution2D, MaxPooling2D
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras import regularizers
 
 from image_augmentation import add_brightness, add_shadow, add_snow, add_rain, add_fog
 
