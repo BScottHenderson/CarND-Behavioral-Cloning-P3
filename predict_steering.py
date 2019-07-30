@@ -12,6 +12,8 @@ Project: Behavioral Cloning
 import sys
 import os
 import csv
+import random
+from tqdm import tqdm
 import cv2
 import click
 import numpy as np
@@ -154,14 +156,14 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
         print('Augmentation test image file: {}'.format(center_image_file))
         center_img = cv2.imread(os.path.join(DATA_DIR, center_image_file))
         test_weather_augmentation(center_img)
-        sys.exit()
+        sys.exit() # Don't do anything else if we're testing image augmentation.
 
     print('Load image files (w/crop) ...')
     images = []
     measurements = []
     iterlines = iter(driving_log)
     next(iterlines)  # skip the first line
-    for line in iterlines:
+    for line in tqdm(iterlines):
         images.append(read_and_crop_image(line[0].strip()))  # center image
         images.append(read_and_crop_image(line[1].strip()))  # left image
         images.append(read_and_crop_image(line[2].strip()))  # right image
@@ -171,28 +173,36 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
         measurements.append(steering + STEERING_CORRECTION)  # left image
         measurements.append(steering - STEERING_CORRECTION)  # right image
 
-    print('Add augmented images ...')
+    print('Add augmented images [{}] ...'.format(len(images)))
     augmented_images, augmented_measurements = [], []
-    for img, measurement in zip(images, measurements):
+    for img, measurement in tqdm(zip(images, measurements)):
+        # Keep the original - unmodified image - in the augmented images list.
         augmented_images.append(img)
         augmented_measurements.append(measurement)
-        # Mitigate the tendency of the model to turn left - since the
-        # training track is basically an oval - by flipping the image
-        # horizontally and changing the sign for the steering angle
-        # measurement.
+
+        # Mitigate the tendency of the model to turn left - since the training track
+        # is basically an oval - by flipping the image  horizontally and changing the
+        # sign for the steering angle measurement.
         augmented_images.append(cv2.flip(img, 1))  # flip around the y axis
         augmented_measurements.append(-measurement)
-        # Add some weather - help prevent overfitting.
+
+        # Help with overfitting:
+        # Adjust light levels.
         augmented_images.append(add_brightness(img))
         augmented_measurements.append(measurement)
         augmented_images.append(add_shadow(img))
         augmented_measurements.append(measurement)
-        # augmented_images.append(add_snow(img))
-        # augmented_measurements.append(measurement)
-        # augmented_images.append(add_rain(img))
-        # augmented_measurements.append(measurement)
-        # augmented_images.append(add_fog(img))
-        # augmented_measurements.append(measurement)
+        # Add some random weather.
+        weather = random.randrange(3)
+        if weather == 0:
+            augmented_images.append(add_snow(img))
+            augmented_measurements.append(measurement)
+        elif weather == 1:
+            augmented_images.append(add_rain(img))
+            augmented_measurements.append(measurement)
+        elif weather == 2:
+            augmented_images.append(add_fog(img))
+            augmented_measurements.append(measurement)
 
     print('Train the model ...')
     X_train = np.array(augmented_images)
