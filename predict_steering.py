@@ -28,8 +28,9 @@ from tensorflow.keras import regularizers
 from image_augmentation import add_brightness, add_shadow, add_snow, add_rain, add_fog
 
 
-DATA_DIR = './data/'
+DATA_DIR       = './data/'
 TEST_IMAGE_DIR = './test_images'
+MODEL_DIR      = './model'
 
 
 #
@@ -54,7 +55,7 @@ CROPPED_IMAGE_WIDTH  = IMAGE_WIDTH
 STEERING_CORRECTION = 0.2
 
 # Training parameters
-DROPOUT           = 0.5
+DROPOUT_RATE      = 0.5
 L2_REGULARIZATION = 0.1
 VALIDATION_SPLIT  = 0.2
 EPOCHS            = 5
@@ -92,38 +93,38 @@ def read_and_crop_image(file_name):
     return cropped_img
 
 
-def LeNet(model):
+def LeNet(model, dropout=False):
     model.add(Convolution2D(6, (5, 5), activation='relu'))
     model.add(MaxPooling2D())
     model.add(Convolution2D(6, (5, 5), activation='relu'))
     model.add(MaxPooling2D())
     model.add(Flatten())
     model.add(Dense(120))
+    if dropout:
+        model.add(Dropout(DROPOUT_RATE))
     model.add(Dense(84))
+    if dropout:
+        model.add(Dropout(DROPOUT_RATE))
     model.add(Dense(1))
     return model
 
 
 def NVIDIA(model, dropout=False):
     model.add(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))
-    if dropout:
-        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(36, (5, 5), strides=(2, 2), activation='relu'))
-    if dropout:
-        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(48, (5, 5), strides=(2, 2), activation='relu'))
-    if dropout:
-        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(64, (3, 3), activation='relu'))
-    if dropout:
-        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(64, (3, 3), activation='relu'))
-    if dropout:
-        model.add(Dropout(DROPOUT))
     model.add(Flatten())
     model.add(Dense(100))
+    if dropout:
+        model.add(Dropout(DROPOUT_RATE))
     model.add(Dense(50))
+    if dropout:
+        model.add(Dropout(DROPOUT_RATE))
     model.add(Dense(10))
+    if dropout:
+        model.add(Dropout(DROPOUT_RATE))
     model.add(Dense(1))
     return model
 
@@ -219,7 +220,7 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
 
     # Create the model.
     if model_type == 'LeNet':
-        model = LeNet(model)
+        model = LeNet(model, dropout=dropout)
     elif model_type == 'NVIDIA':
         model = NVIDIA(model, dropout=dropout)
     else:
@@ -236,7 +237,8 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
                                epochs=epochs)
 
     # Save the model so it can be used for driving.
-    model.save(model_type + '.h5')
+    model_file_name = model_type + ('_dropout.h5' if dropout else '.h5')
+    model.save(os.path.join(MODEL_DIR, model_file_name))
 
     # Plot the training and validation loss for each epoch
     plt.plot(history_object.history['loss'])
@@ -245,7 +247,8 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
     plt.ylabel('Mean Absolute Error Loss')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation Set'], loc='upper right')
-    plt.savefig('Loss.png')
+    plot_file_name = model_type + ('_dropout_loss.png' if dropout else '_loss.png')
+    plt.savefig(os.path.join(MODEL_DIR, plot_file_name))
     # plt.show()
 
 
