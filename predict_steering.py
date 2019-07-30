@@ -10,8 +10,10 @@ Project: Behavioral Cloning
 """
 
 import sys
+import os
 import csv
 import cv2
+import click
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -22,6 +24,10 @@ from tensorflow.keras.layers import Dropout
 from tensorflow.keras import regularizers
 
 from image_augmentation import add_brightness, add_shadow, add_snow, add_rain, add_fog
+
+
+DATA_DIR = './data/'
+TEST_IMAGE_DIR = './test_images'
 
 
 #
@@ -56,43 +62,32 @@ EPOCHS            = 5
 # Local functions
 #
 
-def test_weather_augmentation(image):
-    cv2.imwrite('./images/image.png', image)
-    image_bright = add_brightness(image)
-    cv2.imwrite('./images/image_0_bright.png', image_bright)
-    image_shadow = add_shadow(image)
-    cv2.imwrite('./images/image_1_shadow.png', image_shadow)
-    image_snow = add_snow(image)
-    cv2.imwrite('./images/image_2_snow.png', image_snow)
-    image_rain = add_rain(image)
-    cv2.imwrite('./images/image_3_rain.png', image_rain)
-    image_fog = add_fog(image)
-    cv2.imwrite('./images/image_4_fog.png', image_fog)
-    image_torrential_rain = add_fog(add_rain(image))
-    cv2.imwrite('./images/image_5_torrential_rain.png', image_torrential_rain)
+def test_weather_augmentation(img):
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image.png'), img)
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_0_bright.png'), add_brightness(img))
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_1_shadow.png'), add_shadow(img))
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_2_snow.png'), add_snow(img))
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_3_rain.png'), add_rain(img))
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_4_fog.png'), add_fog(img))
+    cv2.imwrite(os.path.join(TEST_IMAGE_DIR, 'image_5_torrential_rain.png'), add_fog(add_rain(img)))
 
 
-def read_image(source_path):
-    file_name = source_path.split('/')[-1]
-    image_path = './data/IMG/' + file_name
-    image = cv2.imread(image_path)
-    return image
+def read_and_crop_image(file_name):
+    """
+    Crop the top and bottom of each image. The top of each image typically shows sky, trees,
+    hills and other data not relevant to steering while the bottom of each image shows the
+    hood of the car which is also not relevant to steering.
 
-
-def read_and_crop_image(source_path):
-    image = read_image(source_path)
-    # Crop the top and bottom of each image. The top of each image
-    # typically shows sky, trees, hills and other data not relevant
-    # to steering while the bottom of each image shows the hood of
-    # the car which is also not relevant to steering.
-    # The purpose of this step is to reduce the amount of data used
-    # for training to improve training speed.
+    The purpose of this step is to reduce the amount of data used for training to improve
+    training speed.
+    """
+    img = cv2.imread(os.path.join(DATA_DIR, file_name))
     # Use numpy slicing to crop the image.
     # If (x1, y1) is the top/left corner and (x2, y2) is the
     # bottom/right corner, then:
-    #   cropped_image = image[y1:y2, x1:x2]
-    cropped_image = image[CROP_TOP:IMAGE_HEIGHT - CROP_BOTTOM, 0:IMAGE_WIDTH]
-    return cropped_image
+    #   cropped_img = img[y1:y2, x1:x2]
+    cropped_img = img[CROP_TOP:IMAGE_HEIGHT - CROP_BOTTOM, 0:IMAGE_WIDTH]
+    return cropped_img
 
 
 def LeNet(model):
@@ -107,12 +102,22 @@ def LeNet(model):
     return model
 
 
-def NVIDIA(model):
+def NVIDIA(model, dropout=False):
     model.add(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))
+    if dropout:
+        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(36, (5, 5), strides=(2, 2), activation='relu'))
+    if dropout:
+        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(48, (5, 5), strides=(2, 2), activation='relu'))
+    if dropout:
+        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(64, (3, 3), activation='relu'))
+    if dropout:
+        model.add(Dropout(DROPOUT))
     model.add(Convolution2D(64, (3, 3), activation='relu'))
+    if dropout:
+        model.add(Dropout(DROPOUT))
     model.add(Flatten())
     model.add(Dense(100))
     model.add(Dense(50))
@@ -121,56 +126,45 @@ def NVIDIA(model):
     return model
 
 
-def NVIDIA2(model):
-    model.add(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))
-    model.add(Dropout(DROPOUT))
-    model.add(Convolution2D(36, (5, 5), strides=(2, 2), activation='relu'))
-    model.add(Dropout(DROPOUT))
-    model.add(Convolution2D(48, (5, 5), strides=(2, 2), activation='relu'))
-    model.add(Dropout(DROPOUT))
-    model.add(Convolution2D(64, (3, 3), activation='relu'))
-    model.add(Dropout(DROPOUT))
-    model.add(Convolution2D(64, (3, 3), activation='relu'))
-    model.add(Dropout(DROPOUT))
-    model.add(Flatten())
-    model.add(Dense(100, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
-    model.add(Dense(50, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
-    model.add(Dense(10, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
-    model.add(Dense(1, kernel_regularizer=regularizers.l2(L2_REGULARIZATION)))
-    return model
-
-
 #
 # Main
 #
 
-def main(name=None):
+@click.command()
+@click.option('--test-augmentation', '-t', is_flag=True, default=False)
+@click.option('--model-type', type=click.Choice(['LeNet', 'NVIDIA']), required=True)
+@click.option('--dropout', '-d', is_flag=True, default=False)
+@click.option('--epochs', '-e', type=int, default=EPOCHS)
+def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
 
-    print('Name: {}'.format(name))
+    print('Name: {}'.format(__file__))
 
     print('Read driving log ...')
-    lines = []
-    with open('./data/driving_log.csv') as csvfile:
+    driving_log = []
+    with open(os.path.join(DATA_DIR, 'driving_log.csv')) as csvfile:
         reader = csv.reader(csvfile)
         for line in reader:
-            lines.append(line)
+            driving_log.append(line)
 
-    # # Write test augmentation images.
-    # index = np.random.randint(1, len(lines))
-    # center_image_file = lines[index][0]
-    # print('image file: {}'.format(center_image_file))
-    # center_image = read_image(center_image_file)
-    # test_weather_augmentation(center_image)
+    # Write test augmentation images.
+    if test_augmentation:
+        print('Write image augmentation test files ...')
+        index = np.random.randint(1, len(driving_log)) # Skip line 0 due to header.
+        center_image_file = driving_log[index][0]
+        print('Augmentation test image file: {}'.format(center_image_file))
+        center_img = cv2.imread(os.path.join(DATA_DIR, center_image_file))
+        test_weather_augmentation(center_img)
+        sys.exit()
 
     print('Load image files (w/crop) ...')
     images = []
     measurements = []
-    iterlines = iter(lines)
+    iterlines = iter(driving_log)
     next(iterlines)  # skip the first line
     for line in iterlines:
-        images.append(read_and_crop_image(line[0]))  # center image
-        images.append(read_and_crop_image(line[1]))  # left image
-        images.append(read_and_crop_image(line[2]))  # right image
+        images.append(read_and_crop_image(line[0].strip()))  # center image
+        images.append(read_and_crop_image(line[1].strip()))  # left image
+        images.append(read_and_crop_image(line[2].strip()))  # right image
 
         steering = float(line[3])
         measurements.append(steering)  # center image
@@ -179,25 +173,25 @@ def main(name=None):
 
     print('Add augmented images ...')
     augmented_images, augmented_measurements = [], []
-    for image, measurement in zip(images, measurements):
-        augmented_images.append(image)
+    for img, measurement in zip(images, measurements):
+        augmented_images.append(img)
         augmented_measurements.append(measurement)
         # Mitigate the tendency of the model to turn left - since the
         # training track is basically an oval - by flipping the image
         # horizontally and changing the sign for the steering angle
         # measurement.
-        augmented_images.append(cv2.flip(image, 1))  # flip around the y axis
+        augmented_images.append(cv2.flip(img, 1))  # flip around the y axis
         augmented_measurements.append(-measurement)
         # Add some weather - help prevent overfitting.
-        augmented_images.append(add_brightness(image))
+        augmented_images.append(add_brightness(img))
         augmented_measurements.append(measurement)
-        augmented_images.append(add_shadow(image))
+        augmented_images.append(add_shadow(img))
         augmented_measurements.append(measurement)
-        # augmented_images.append(add_snow(image))
+        # augmented_images.append(add_snow(img))
         # augmented_measurements.append(measurement)
-        # augmented_images.append(add_rain(image))
+        # augmented_images.append(add_rain(img))
         # augmented_measurements.append(measurement)
-        # augmented_images.append(add_fog(image))
+        # augmented_images.append(add_fog(img))
         # augmented_measurements.append(measurement)
 
     print('Train the model ...')
@@ -213,11 +207,14 @@ def main(name=None):
     model.add(Lambda(lambda x: (x / 255.0) - 0.5, input_shape=cropped_image_shape))
     # model.add(Lambda(lambda x: (x / 127.5) - 1., input_shape=cropped_image_shape))
 
-    # LeNet
-    # model = LeNet(model)
-    # NVIDIA model
-    # model = NVIDIA(model)
-    model = NVIDIA2(model)
+    # Create the model.
+    if model_type == 'LeNet':
+        model = LeNet(model)
+    elif model_type == 'NVIDIA':
+        model = NVIDIA(model, dropout=dropout)
+    else:
+        print('Unrecognized model type: {}'.format(model_type))
+        model = None # Cause an exception below.
 
     # Use 'mse' (mean squared error) rather than 'cross_entropy' because this is
     # a regression network rather than a classification network.
@@ -226,22 +223,21 @@ def main(name=None):
     model.compile(loss='mae', optimizer='adam')
     history_object = model.fit(X_train, y_train,
                                validation_split=VALIDATION_SPLIT, shuffle=True,
-                               epochs=EPOCHS)
+                               epochs=epochs)
 
-    model.save('model.h5')
+    # Save the model so it can be used for driving.
+    model.save(model_type + '.h5')
 
     # Plot the training and validation loss for each epoch
     plt.plot(history_object.history['loss'])
     plt.plot(history_object.history['val_loss'])
-    # plt.title('Model Mean Squared Error Loss')
-    # plt.ylabel('Mean Squared Error Loss')
     plt.title('Model Mean Absolute Error Loss')
     plt.ylabel('Mean Absolute Error Loss')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation Set'], loc='upper right')
     plt.savefig('Loss.png')
-    plt.show()
+    # plt.show()
 
 
 if __name__ == '__main__':
-    main(*sys.argv)
+    main()
