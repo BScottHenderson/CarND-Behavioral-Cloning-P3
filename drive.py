@@ -26,14 +26,17 @@ IMAGE_CHANNELS = 3
 CROP_TOP    = 70
 CROP_BOTTOM = 25
 
-# Low pass filter for steering angle adjustment
-STEERING_SMOOTH = 0.1
+# Low pass filter for steering angle adjustment. The value should be a percentage
+# in the range [0.0, 1.0]. A value of 1.0 eliminates the previous steering angle
+# in favor of the predicted value.
+STEERING_SMOOTH = 0.35
+prev_steering_angle = 0.
 
 
 sio = socketio.Server()
 app = Flask(__name__)
 model = None
-prev_image_array = None
+
 
 class SimplePIController:
     def __init__(self, Kp, Ki):
@@ -60,9 +63,12 @@ controller = SimplePIController(0.1, 0.002)
 set_speed = 9
 controller.set_desired(set_speed)
 
+
 @sio.on('telemetry')
 def telemetry(sid, data):
     if data:
+        global prev_steering_angle
+
         # The current steering angle of the car
         steering_angle = data["steering_angle"]
         # The current throttle of the car
@@ -77,14 +83,31 @@ def telemetry(sid, data):
         # Crop the input image since this is done in the model.
         predicted_steering_angle = float(model.predict(image_array[None, CROP_TOP:IMAGE_HEIGHT - CROP_BOTTOM, :, :], batch_size=1))
 
-#        # Low pass filter to smooth out steering changes.
-#        steering_angle = float(steering_angle)
-#        if steering_angle != 0.:
-#            steering_angle = (predicted_steering_angle * STEERING_SMOOTH) + (steering_angle * (1. - STEERING_SMOOTH))
-#        else:
-#            steering_angle = predicted_steering_angle
-        steering_angle = predicted_steering_angle
+        # Low pass filter to smooth out steering changes:
+        # -> Use the previously predicted steering angle.
+        steering_angle = predicted_steering_angle if prev_steering_angle == 0.\
+            else  (predicted_steering_angle * STEERING_SMOOTH) + (prev_steering_angle * (1. - STEERING_SMOOTH))
+        prev_steering_angle = steering_angle
 
+        # -> Use the telemetry steering angle.
+        # For some reason the steering angle received via telemetry is not close to the
+        # predicted steering angle. The resulting blended or "smoothed" steering angle
+        # causes the vehicle to immediately begin turning circles even with using just
+        # 10% of the telemetry steering angle (STEERING_SMOOTH = 0.9). With a smoothing
+        # value of 0.99 (using just 1% of the incoming steering angle) the vehicle will
+        # remain on the road but the effect seems to be to make the steering *less* smooth.
+        # There is clearly something that I do not understand regarding the telemetry data.
+        # steering_angle = float(steering_angle)
+        # steering_angle = predicted_steering_angle if steering_angle == 0.\
+        #     else  (predicted_steering_angle * STEERING_SMOOTH) + (steering_angle * (1. - STEERING_SMOOTH))
+
+        # No filtering - just use the predicted steering angle directly.
+        # steering_angle = predicted_steering_angle
+
+        # Obtain the throttle setting from our simple PID controller based on current
+        # telemetry speed. If it seemed necessary we could use the telemetry throttle
+        # value and a low pass filter for smoothing - similar to that used for the steering
+        # angle - to smooth throttle changes.
         throttle = controller.update(float(speed))
 
         # print('steering:{:+9.5f}, throttle:{:+9.5f}'.format(steering_angle, throttle))
