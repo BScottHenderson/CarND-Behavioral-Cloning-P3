@@ -1,0 +1,1 @@
+python predict_steering.py --model-type NVIDIA --dropout --epochs 25
