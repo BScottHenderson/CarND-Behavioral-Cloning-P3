@@ -19,6 +19,9 @@ import click
 import numpy as np
 import matplotlib.pyplot as plt
 
+import tensorflow as tf
+import tensorflow.keras as keras
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Flatten, Dense, Lambda  # , Cropping2D
 from tensorflow.keras.layers import Convolution2D, MaxPooling2D
@@ -53,6 +56,9 @@ CROPPED_IMAGE_WIDTH  = IMAGE_WIDTH
 # Could use trigonometry to find exact adjustment factor if we had enough
 # data regarding the relative position and angle of the three cameras.
 STEERING_CORRECTION = 0.2
+
+# Random threshold for adding weather-augmented images.
+WEATHER_THRESHOLD = 0.5
 
 # Training parameters
 DROPOUT_RATE      = 0.5
@@ -140,14 +146,18 @@ def NVIDIA(model, dropout=False):
 @click.option('--epochs', '-e', type=int, default=EPOCHS)
 def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
 
-    print('Name: {}'.format(__file__))
+    print('Name: {}\n'.format(__file__))
 
-    print('Read driving log ...')
+    print('TensorFlow version: {}'.format(tf.__version__))
+    print('Keras version     : {}'.format(keras.__version__))
+
+    print('\nRead driving log ...')
     driving_log = []
     with open(os.path.join(DATA_DIR, 'driving_log.csv')) as csvfile:
         reader = csv.reader(csvfile)
         for line in reader:
             driving_log.append(line)
+    print('Read {} entries.'.format(len(driving_log)))
 
     # Write test augmentation images.
     if test_augmentation:
@@ -159,55 +169,63 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
         test_weather_augmentation(center_img)
         sys.exit() # Don't do anything else if we're testing image augmentation.
 
-    print('Load image files (w/crop) ...')
+    print('\nLoad image files ...')
     images = []
     measurements = []
     iterlines = iter(driving_log)
     next(iterlines)  # skip the first line
     for line in tqdm(iterlines):
-        images.append(read_and_crop_image(line[0].strip()))  # center image
-        images.append(read_and_crop_image(line[1].strip()))  # left image
-        images.append(read_and_crop_image(line[2].strip()))  # right image
+        # driving_log.csv: center,left,right,steering,throttle,brake,speed
 
+        # Read source images.
+        img_center = read_and_crop_image(line[0].strip())  # center image
+        img_left   = read_and_crop_image(line[1].strip())  # left image
+        img_right  = read_and_crop_image(line[2].strip())  # right image
+
+        # Steering angle.
         steering = float(line[3])
-        measurements.append(steering)  # center image
-        measurements.append(steering + STEERING_CORRECTION)  # left image
-        measurements.append(steering - STEERING_CORRECTION)  # right image
 
-    print('Add augmented images [{}] ...'.format(len(images)))
-    augmented_images, augmented_measurements = [], []
-    for img, measurement in tqdm(zip(images, measurements)):
-        # Keep the original - unmodified image - in the augmented images list.
-        augmented_images.append(img)
-        augmented_measurements.append(measurement)
+        # Add base images.
+        images.extend(      [img_center, img_left,                       img_right])
+        measurements.extend([steering,   steering + STEERING_CORRECTION, steering - STEERING_CORRECTION])
 
         # Mitigate the tendency of the model to turn left - since the training track
-        # is basically an oval - by flipping the image  horizontally and changing the
+        # is basically an oval - by flipping the image horizontally and changing the
         # sign for the steering angle measurement.
-        augmented_images.append(cv2.flip(img, 1))  # flip around the y axis
-        augmented_measurements.append(-measurement)
+        # Flip around the y-axis: cv2.flip(img, 1)
+        images.extend(      [cv2.flip(img_center, 1), cv2.flip(img_left, 1),             cv2.flip(img_right, 1)])
+        measurements.extend([-steering,               -(steering + STEERING_CORRECTION), -(steering - STEERING_CORRECTION)])
 
-        # Help with overfitting:
-        # Adjust light levels.
-        augmented_images.append(add_brightness(img))
-        augmented_measurements.append(measurement)
-        augmented_images.append(add_shadow(img))
-        augmented_measurements.append(measurement)
-        # Add some random weather.
-        weather = random.randrange(3)
-        if weather == 0:
-            augmented_images.append(add_snow(img))
-            augmented_measurements.append(measurement)
-        elif weather == 1:
-            augmented_images.append(add_rain(img))
-            augmented_measurements.append(measurement)
-        elif weather == 2:
-            augmented_images.append(add_fog(img))
-            augmented_measurements.append(measurement)
+    print('Added {} images to training set.'.format(len(images)))
+
+    # print('Add augmented images ...')
+    # augmented_images, augmented_measurements = [], []
+    # for img, measurement in tqdm(zip(images, measurements)):
+    #     # Help with overfitting:
+    #     # Adjust light levels.
+    #     augmented_images.append(add_brightness(img))
+    #     augmented_measurements.append(measurement)
+    #     augmented_images.append(add_shadow(img))
+    #     augmented_measurements.append(measurement)
+
+    #     # Add some random weather.
+    #     if random.random() < WEATHER_THRESHOLD:
+    #         weather_type = random.randrange(3)
+    #         if weather_type == 0:
+    #             augmented_images.append(add_snow(img))
+    #         elif weather_type == 1:
+    #             augmented_images.append(add_rain(img))
+    #         elif weather_type == 2:
+    #             augmented_images.append(add_fog(img))
+    #         augmented_measurements.append(measurement)
+
+    # print('Added {} augmented images to training set.'.format(len(augmented_images)))
+    # images.extend(augmented_images)
+    # print('Total training images: {}'.format(len(images)))
 
     print('Train the model ...')
-    X_train = np.array(augmented_images)
-    y_train = np.array(augmented_measurements)
+    X_train = np.array(images)
+    y_train = np.array(measurements)
 
     # image_shape = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
     cropped_image_shape = (CROPPED_IMAGE_HEIGHT, CROPPED_IMAGE_WIDTH, IMAGE_CHANNELS)
@@ -243,7 +261,7 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
     # Plot the training and validation loss for each epoch
     plt.plot(history_object.history['loss'])
     plt.plot(history_object.history['val_loss'])
-    plt.title('Model Mean Absolute Error Loss')
+    plt.title('Model Mean Absolute Error Loss Model={}'.format(model_type + ('w/ dropout' if dropout else '')))
     plt.ylabel('Mean Absolute Error Loss')
     plt.xlabel('Epoch')
     plt.legend(['Training Set', 'Validation Set'], loc='upper right')
