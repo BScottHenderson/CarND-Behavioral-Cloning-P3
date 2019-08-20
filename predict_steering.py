@@ -198,6 +198,13 @@ def main(test_augmentation=None, model_type=None, dropout=None, epochs=None):
 
     print('Added {} images to training set.'.format(len(images)))
 
+    """
+    Adding augmented images using the following code seems to lead to overfitting on the training data.
+    Without these images the NVIDIA model with dropout was able to successfully - and apparently easly -
+    navigate the test track with a speed of 30. With the following code block uncommented the vehicle
+    does not remain on the road. Note that the vehicle will not successfully navigate the challenge
+    track in either case.
+    """
     # print('Add augmented images ...')
     # augmented_images, augmented_measurements = [], []
     # for img, measurement in tqdm(zip(images, measurements)):
